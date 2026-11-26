@@ -1,0 +1,221 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linear Regression From Scratch</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <h1>Linear Regression</h1>
+    <hr>
+
+    <h2>Training Data</h2>
+
+    <label>X values (comma separated):</label><br>
+    <input
+        type="text"
+        id="xValues"
+        value="1, 2, 3, 4, 5"
+    >
+
+    <br><br>
+
+    <label>Y values (comma separated):</label><br>
+    <input
+        type="text"
+        id="yValues"
+        value="2, 4, 5, 4, 6"
+    >
+
+    <br><br>
+
+    <button onclick="trainModel()">Train Model</button>
+
+    <p id="status"></p>
+
+    <hr>
+
+    <h2>Model Results</h2>
+
+    <p>Slope: <span id="slope">-</span></p>
+    <p>Intercept: <span id="intercept">-</span></p>
+    <p>R² Score: <span id="r2">-</span></p>
+
+    <p>Equation: <span id="equation">-</span></p>
+
+    <hr>
+
+    <h2>Make a Prediction</h2>
+
+    <label>Enter X:</label>
+    <input type="number" id="predictInput" value="6">
+
+    <button onclick="predict()">Predict</button>
+
+    <p>Predicted Y: <span id="prediction">-</span></p>
+
+    <hr>
+
+    <h2>Regression Graph</h2>
+
+    <canvas id="regressionChart"></canvas>
+
+    <script>
+
+        let model = null;
+        let chart = null;
+
+        async function trainModel() {
+
+            const X = document.getElementById("xValues")
+                .value.split(",").map(Number);
+
+            const y = document.getElementById("yValues")
+                .value.split(",").map(Number);
+
+            if (
+                X.length !== y.length ||
+                X.some(v => !Number.isFinite(v)) ||
+                y.some(v => !Number.isFinite(v))
+            ) {
+                document.getElementById("status").innerText =
+                    "Enter valid, matching numerical datasets.";
+                return;
+            }
+
+            try {
+
+                const response = await fetch("/fit", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ X, y })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message);
+                }
+
+                model = result;
+
+                document.getElementById("status").innerText =
+                    "Model trained successfully.";
+
+                document.getElementById("slope").innerText =
+                    result.slope.toFixed(4);
+
+                document.getElementById("intercept").innerText =
+                    result.intercept.toFixed(4);
+
+                document.getElementById("r2").innerText =
+                    result.r2_score.toFixed(4);
+
+                document.getElementById("equation").innerText =
+                    `y = ${result.intercept.toFixed(4)} + ${result.slope.toFixed(4)}x`;
+
+                drawGraph(X, y, result.slope, result.intercept);
+
+            } catch (error) {
+
+                model = null;
+
+                document.getElementById("status").innerText =
+                    "Error: " + error.message;
+            }
+        }
+
+
+        function predict() {
+
+            if (!model) {
+                alert("Train the model first.");
+                return;
+            }
+
+            const x = Number(
+                document.getElementById("predictInput").value
+            );
+
+            if (!Number.isFinite(x)) {
+                alert("Enter a valid X value.");
+                return;
+            }
+
+            const y = model.intercept + model.slope * x;
+
+            document.getElementById("prediction").innerText =
+                y.toFixed(4);
+        }
+
+
+        function drawGraph(X, y, slope, intercept) {
+
+            const points = X.map((x, i) => ({
+                x: x,
+                y: y[i]
+            }));
+
+            const minX = Math.min(...X);
+            const maxX = Math.max(...X);
+
+            const line = [
+                { x: minX, y: intercept + slope * minX },
+                { x: maxX, y: intercept + slope * maxX }
+            ];
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(
+                document.getElementById("regressionChart"),
+                {
+                    type: "scatter",
+
+                    data: {
+                        datasets: [
+                            {
+                                label: "Actual Data",
+                                data: points
+                            },
+                            {
+                                label: "Regression Line",
+                                data: line,
+                                type: "line",
+                                showLine: true,
+                                pointRadius: 0,
+                                fill: false
+                            }
+                        ]
+                    },
+
+                    options: {
+                        scales: {
+                            x: {
+                                type: "linear",
+                                title: {
+                                    display: true,
+                                    text: "X"
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: "Y"
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+        }
+
+    </script>
+
+</body>
+</html>
