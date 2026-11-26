@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- Title -->
+  <title>Perceptron Visualizer</title>
+  <!-- Style -->
+  <style>
+    body { font-family: sans-serif; margin: 24px; line-height: 1.5; color: #111; max-width: 600px; }
+    canvas { background: #fafafa; border: 1px solid #999; margin-bottom: 12px; }
+    button { padding: 6px 14px; margin-right: 8px; font-size: 14px; cursor: pointer; }
+    input { width: 60px; padding: 4px 6px; font-size: 14px; margin: 0 6px; }
+    .card { background: #f1f5f9; padding: 12px; border-radius: 6px; margin: 12px 0; border: 1px solid #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: center; }
+    th { background: #e2e8f0; }
+    .guide { margin-top: 16px; font-size: 14px; }
+    .guide ul { padding-left: 20px; }
+    .green { color: green; font-weight: bold; }
+    .red { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <h2>Single Neuron Visualizer (OR Gate)</h2>
+
+  <!-- Canvas -->
+  <canvas id="c" width="360" height="360"></canvas><br>
+
+  <!-- Controls -->
+  <button id="step">Train 1 Step</button>
+  <button id="train">Train 50 Steps</button>
+  <button id="reset">Reset Weights</button>
+
+  <!-- Parameters -->
+  <p id="info"></p>
+
+  <!-- Table -->
+  <div class="card">
+    <strong>Training Data Predictions</strong>
+    <table>
+      <thead>
+        <tr>
+          <th>Input</th>
+          <th>Target</th>
+          <th>Probability</th>
+          <th>Prediction</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Tester -->
+  <div class="card">
+    <strong>Test Custom Inputs</strong><br><br>
+    <label>Input 1 (x1): <input type="number" id="tx1" value="0.8" step="0.1"></label>
+    <label>Input 2 (x2): <input type="number" id="tx2" value="0.2" step="0.1"></label>
+    <button id="calc">Calculate</button>
+    <p id="custom-output" style="margin: 8px 0 0 0;"></p>
+  </div>
+
+  <!-- Guide -->
+  <div class="guide">
+    <strong>What you are seeing:</strong>
+    <ul>
+      <li><strong>Horizontal Axis:</strong> Input 1 (x1) from 0 to 1.</li>
+      <li><strong>Vertical Axis:</strong> Input 2 (x2) from 0 to 1.</li>
+      <li><span class="red">Red Dot [0, 0]:</span> Target output is 0.</li>
+      <li><span class="green">Green Dots [0, 1], [1, 0], [1, 1]:</span> Target output is 1.</li>
+      <li><strong>Black Line:</strong> The Decision Boundary. Training moves this line until the red dot is separated from all green dots.</li>
+    </ul>
+  </div>
+
+  <!-- Script -->
+  <script>
+    // Context
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d");
+
+    // Data
+    const data = [
+      { x: [0, 0], y: 0, label: "(0,0)" },
+      { x: [0, 1], y: 1, label: "(0,1)" },
+      { x: [1, 0], y: 1, label: "(1,0)" },
+      { x: [1, 1], y: 1, label: "(1,1)" }
+    ];
+
+    // State
+    let w1, w2, b, epoch;
+
+    // Reset
+    function init() {
+      w1 = Math.random() - 0.5;
+      w2 = Math.random() - 0.5;
+      b = Math.random() - 0.5;
+      epoch = 0;
+      draw();
+    }
+
+    // Sigmoid
+    function sigmoid(z) {
+      return 1 / (1 + Math.exp(-z));
+    }
+
+    // Forward
+    function forward(x1, x2) {
+      const z = x1 * w1 + x2 * w2 + b;
+      return { z: z, out: sigmoid(z) };
+    }
+
+    // Step
+    function trainSteps(count) {
+      for (let i = 0; i < count; i++) {
+        for (let d of data) {
+          // Forward
+          const pred = sigmoid(d.x[0] * w1 + d.x[1] * w2 + b);
+
+          // Error
+          const err = d.y - pred;
+
+          // Gradient
+          const grad = -err * pred * (1 - pred);
+
+          // Update
+          w1 -= 0.2 * grad * d.x[0];
+          w2 -= 0.2 * grad * d.x[1];
+          b -= 0.2 * grad;
+        }
+        epoch++;
+      }
+      draw();
+    }
+
+    // Test
+    function testCustom() {
+      const x1 = parseFloat(document.getElementById("tx1").value) || 0;
+      const x2 = parseFloat(document.getElementById("tx2").value) || 0;
+      const res = forward(x1, x2);
+      const binary = res.out >= 0.5 ? 1 : 0;
+      
+      document.getElementById("custom-output").innerText = 
+        `Raw Score (z): ${res.z.toFixed(3)} | Probability: ${res.out.toFixed(4)} | Result: ${binary}`;
+    }
+
+    // Draw
+    function draw() {
+      // Clear
+      ctx.clearRect(0, 0, 360, 360);
+
+      const ox = 70;
+      const oy = 280;
+      const scale = 200;
+
+      // Axes
+      ctx.strokeStyle = "#888";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ox, 30);
+      ctx.lineTo(ox, oy);
+      ctx.lineTo(330, oy);
+      ctx.stroke();
+
+      // Labels
+      ctx.fillStyle = "#333";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("Input 1 (x1)", 270, oy + 25);
+      ctx.fillText("Input 2 (x2)", ox - 60, 40);
+
+      // Ticks
+      ctx.fillText("0", ox - 12, oy + 15);
+      ctx.fillText("1", ox + scale - 3, oy + 15);
+      ctx.fillText("1", ox - 15, oy - scale + 4);
+
+      // Boundary
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const yAtMinX = (-w1 * -10 - b) / w2;
+      const yAtMaxX = (-w1 * 10 - b) / w2;
+      ctx.moveTo(ox + -10 * scale, oy - yAtMinX * scale);
+      ctx.lineTo(ox + 10 * scale, oy - yAtMaxX * scale);
+      ctx.stroke();
+
+      // Points
+      for (let d of data) {
+        const px = ox + d.x[0] * scale;
+        const py = oy - d.x[1] * scale;
+
+        // Dot
+        ctx.fillStyle = d.y ? "#16a34a" : "#dc2626";
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tag
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 11px sans-serif";
+        ctx.fillText(`${d.label} = ${d.y}`, px + 10, py - 6);
+      }
+
+      // Parameters
+      document.getElementById("info").innerText = 
+        `Epoch: ${epoch} | Weight 1: ${w1.toFixed(3)} | Weight 2: ${w2.toFixed(3)} | Bias: ${b.toFixed(3)}`;
+
+      // Table
+      const tbody = document.getElementById("table-body");
+      tbody.innerHTML = "";
+      for (let d of data) {
+        const res = forward(d.x[0], d.x[1]);
+        const pred = res.out >= 0.5 ? 1 : 0;
+        const match = pred === d.y;
+        tbody.innerHTML += `
+          <tr>
+            <td>[${d.x[0]}, ${d.x[1]}]</td>
+            <td>${d.y}</td>
+            <td>${res.out.toFixed(4)}</td>
+            <td style="color:${match ? 'green' : 'red'}; font-weight:bold;">${pred}</td>
+          </tr>
+        `;
+      }
+
+      // Re-evaluate
+      testCustom();
+    }
+
+    // Events
+    document.getElementById("step").onclick = () => trainSteps(1);
+    document.getElementById("train").onclick = () => trainSteps(50);
+    document.getElementById("reset").onclick = init;
+    document.getElementById("calc").onclick = testCustom;
+    document.getElementById("tx1").oninput = testCustom;
+    document.getElementById("tx2").oninput = testCustom;
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
