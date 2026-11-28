@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KNN Visualizer</title>
+</head>
+<body>
+    <h2>K-Nearest Neighbors</h2>
+    <p>Click anywhere on the graph to classify a point.</p>
+
+    <label>K:
+        <input id="k" type="number" min="1" max="10" value="3">
+    </label>
+
+    <label>Distance:
+        <select id="metric">
+            <option value="euclidean">Euclidean</option>
+            <option value="manhattan">Manhattan</option>
+        </select>
+    </label>
+
+    <button onclick="classifyAtCenter()">Classify center</button>
+
+    <p id="result">Prediction: -</p>
+    <p id="votes">Votes: -</p>
+
+    <canvas id="plot" width="600" height="450" style="border:1px solid black"></canvas>
+
+    <script>
+        const canvas = document.getElementById("plot");
+        const ctx = canvas.getContext("2d");
+        const padding = 30;
+        let points = [];
+        let neighbors = [];
+        let query = null;
+        let prediction = null;
+
+        function toCanvas(x, y) {
+            return {
+                x: padding + x / 10 * (canvas.width - 2 * padding),
+                y: canvas.height - padding - y / 10 * (canvas.height - 2 * padding)
+            };
+        }
+
+        function toData(x, y) {
+            return {
+                x: (x - padding) / (canvas.width - 2 * padding) * 10,
+                y: (canvas.height - padding - y) / (canvas.height - 2 * padding) * 10
+            };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = "#ccc";
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+
+            for (const point of points) {
+                const p = toCanvas(point.x, point.y);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+                ctx.fillStyle = point.label === "A" ? "blue" : "red";
+                ctx.fill();
+            }
+
+            if (query) {
+                const q = toCanvas(query.x, query.y);
+
+                for (const neighbor of neighbors) {
+                    const p = toCanvas(neighbor.x, neighbor.y);
+                    ctx.beginPath();
+                    ctx.moveTo(q.x, q.y);
+                    ctx.lineTo(p.x, p.y);
+                    ctx.strokeStyle = "green";
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(q.x, q.y, 9, 0, Math.PI * 2);
+                ctx.fillStyle = prediction === "A" ? "blue" : "red";
+                ctx.fill();
+                ctx.strokeStyle = "black";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.lineWidth = 1;
+            }
+        }
+
+        async function classify(x, y) {
+            query = {x, y};
+            const response = await fetch("/predict", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    x,
+                    y,
+                    k: document.getElementById("k").value,
+                    metric: document.getElementById("metric").value
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                document.getElementById("result").textContent = data.error;
+                return;
+            }
+
+            points = data.points;
+            neighbors = data.neighbors;
+            prediction = data.prediction;
+            document.getElementById("result").textContent = "Prediction: " + prediction;
+            document.getElementById("votes").textContent =
+                "Votes: " + JSON.stringify(data.votes);
+            draw();
+        }
+
+        function classifyAtCenter() {
+            classify(5, 5);
+        }
+
+        canvas.addEventListener("click", event => {
+            const rect = canvas.getBoundingClientRect();
+            const point = toData(event.clientX - rect.left, event.clientY - rect.top);
+            point.x = Math.max(0, Math.min(10, point.x));
+            point.y = Math.max(0, Math.min(10, point.y));
+            classify(point.x, point.y);
+        });
+
+        classifyAtCenter();
+    </script>
+</body>
+</html>
